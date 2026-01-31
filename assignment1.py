@@ -1,53 +1,45 @@
-
-# necessary imports
 import numpy as np
 import pandas as pd
-from statsmodels.tsa.holtwinters import ExponentialSmoothing as ES
+from pygam import LinearGAM, s, f
 
-
-# training and testing data
 train_url = "https://github.com/dustywhite7/econ8310-assignment1/raw/main/assignment_data_train.csv"
-test_url  = "https://github.com/dustywhite7/econ8310-assignment1/raw/main/assignment_data_test.csv"
-
 train = pd.read_csv(train_url)
-test  = pd.read_csv(test_url)
 
+y = train["trips"].astype(float).to_numpy()
+n = len(y)
+H = 744
 
-# Identify the target (dependent) variable for forecasting
-def get_target(df: pd.DataFrame) -> str:
-    
-    # Prefer the 'trips' column if it exists
-    if "trips" in df.columns:
-        return "trips"
-    
-    # Otherwise, select the numeric column with highest variance
-    num_cols = df.select_dtypes(include=[np.number]).columns.tolist()
-    
-    if not num_cols:
-        raise ValueError("No numeric columns available for target.")
-        
-    return df[num_cols].var().sort_values(ascending=False).index[0]
+t = np.arange(n)
+hour = (t % 24)
+dow  = ((t // 24) % 7).astype(int)
 
+hour_rad = 2 * np.pi * hour / 24.0
+hour_sin = np.sin(hour_rad)
+hour_cos = np.cos(hour_rad)
 
-# Extract the target time series from training data
-y_col = get_target(train)
-y = train[y_col].astype(float).to_numpy()
+X = np.column_stack([hour_sin, hour_cos, dow, t])
 
-
-# defining ExponentialSmoothing model
-model = ES(
-    y,
-    trend = "add",
-    seasonal = "add",
-    seasonal_periods = 168,
-    initialization_method = "estimated"
+model = LinearGAM(
+    s(0, n_splines=20) +
+    s(1, n_splines=20) +
+    f(2) +
+    s(3, n_splines=80)
 )
 
+lam_grid = np.logspace(-3, 3, 9)
+modelFit = model.gridsearch(X, y, lam=lam_grid, progress=False)
 
-# Fitting model to training data
-modelFit = model.fit(optimized=True, use_brute=True)
+t_future = np.arange(n, n + H)
+hour_f = (t_future % 24)
+dow_f  = ((t_future // 24) % 7).astype(int)
 
-# Generate forecasts for the next 744 hours (January test period)
-pred = np.asarray(modelFit.forecast(744), dtype = float)
+hour_rad_f = 2 * np.pi * hour_f / 24.0
+X_future = np.column_stack([
+    np.sin(hour_rad_f),
+    np.cos(hour_rad_f),
+    dow_f,
+    t_future
+])
 
+pred = modelFit.predict(X_future).astype(float)
 pred = np.clip(pred, 0, None)
