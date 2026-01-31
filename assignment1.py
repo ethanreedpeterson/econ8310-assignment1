@@ -39,7 +39,7 @@ model = ES(
     y,
     trend = "add",
     seasonal = "add",
-    seasonal_periods = 24,
+    seasonal_periods = 168,
     initialization_method = "estimated"
 )
 
@@ -47,9 +47,7 @@ model = ES(
 # Fitting model to training data
 modelFit = model.fit(optimized=True, use_brute=True)
 
-
 # Generate forecasts for the next 744 hours (January test period)
 pred = np.asarray(modelFit.forecast(744), dtype = float)
-
 
 pred = np.clip(pred, 0, None)
