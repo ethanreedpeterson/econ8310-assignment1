@@ -1,45 +1,31 @@
+#GAM METHOD
 import numpy as np
 import pandas as pd
 from pygam import LinearGAM, s, f
 
+# data
 train_url = "https://github.com/dustywhite7/econ8310-assignment1/raw/main/assignment_data_train.csv"
+test_url  = "https://github.com/dustywhite7/econ8310-assignment1/raw/main/assignment_data_test.csv"
+
 train = pd.read_csv(train_url)
+test  = pd.read_csv(test_url)
 
-y = train["trips"].astype(float).to_numpy()
-n = len(y)
-H = 744
 
-t = np.arange(n)
-hour = (t % 24)
-dow  = ((t // 24) % 7).astype(int)
+X_train = train[["hour", "day", "month"]].values
+y_train = train["trips"].values
 
-hour_rad = 2 * np.pi * hour / 24.0
-hour_sin = np.sin(hour_rad)
-hour_cos = np.cos(hour_rad)
-
-X = np.column_stack([hour_sin, hour_cos, dow, t])
+X_test = test[["hour", "day", "month"]].values
 
 model = LinearGAM(
-    s(0, n_splines=20) +
-    s(1, n_splines=20) +
-    f(2) +
-    s(3, n_splines=80)
+    s(0, n_splines=24) +
+    s(1, n_splines=31) +
+    f(2)
 )
 
-lam_grid = np.logspace(-3, 3, 9)
-modelFit = model.gridsearch(X, y, lam=lam_grid, progress=False)
+modelFit = model.fit(X_train, y_train)
+pred = modelFit.predict(X_test)
 
-t_future = np.arange(n, n + H)
-hour_f = (t_future % 24)
-dow_f  = ((t_future // 24) % 7).astype(int)
+forecast_df = test.copy()
+forecast_df["predicted_trips"] = pred
 
-hour_rad_f = 2 * np.pi * hour_f / 24.0
-X_future = np.column_stack([
-    np.sin(hour_rad_f),
-    np.cos(hour_rad_f),
-    dow_f,
-    t_future
-])
-
-pred = modelFit.predict(X_future).astype(float)
-pred = np.clip(pred, 0, None)
+forecast_df.head()
